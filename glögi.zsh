@@ -9,6 +9,7 @@ echo "Initializing compiler..."
 
 # Create utility functions
 log() {
+    # log [-qq] "log"
     # $1: command flag (-q to silence, -qq to supersilence)
     # $2: loggable message
     [[ -n "$2" ]] && message="$2" || message="$1"
@@ -23,6 +24,7 @@ log() {
 }
 
 fail() {
+    # fail "error" ["code"]
     # $1: error message
     # $2: error code (default 1)
     message="FAILED: $1"
@@ -32,6 +34,7 @@ fail() {
 }
 
 try() {
+    # try [-qe] "message" ["error"] command
     # $1: command flags (-q to silence, -e to add error message)
     # $2: message, like what the command is doing. Leaving empty will not print anything
     # $3: if -e passed, it is space for error message
@@ -150,5 +153,5 @@ log -q "Validating sourcefiles"
 [[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv glögilogs $logfile
 
 # Start compilation
-try - "Creating destination..." touch $dest
+try "Creating destination..." touch $dest
 
