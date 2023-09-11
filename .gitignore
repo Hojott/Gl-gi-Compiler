@@ -1,3 +1,13 @@
+# Logs
 *.log
-dest
+
+# Dest files
+*dest*
+
+# Source files
 *.gl
+*source*
+*src*
+
+# Tmp files
+*.tmp

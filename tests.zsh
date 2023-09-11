@@ -4,6 +4,9 @@
 ./make.zsh
 
 echo "-- Test 1 --"
-./glögi.zsh -vd dest src.gl
+./glögi.zsh -fd dest src.gl
 echo ""
+
+echo "-- Test 2 --"
+./glögi.zsh -fvd dest src.gl
 

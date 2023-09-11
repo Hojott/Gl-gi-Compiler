@@ -2,18 +2,22 @@
 ##
 ## The glögi compiler, written in zsh.
 ##
+
+### Start initialization ###
 echo "Initializing compiler..."
 
 # Load zsh modules
 #autoload ...
 
 # Create utility functions
+# TODO: better names for tmp_log and logfiletmp
+tmp_log="glögi.log"
 log() {
     # log [-qq] "log"
     # $1: command flag (-q to silence, -qq to supersilence)
     # $2: loggable message
     [[ -n "$2" ]] && message="$2" || message="$1"
-    [[ -n "$logfile" ]] && echo "$message" >> "$logfile" || echo "$message" >> glögilogs
+    [[ -n "$logfile" ]] && echo "$message" >> "$logfile" || echo "$message" >> "$tmp_log"
     if [[ "$1" == "-qq" ]] ; then
 	:
     elif [[ "$1" == -q ]] && [[ -z "$verbose" ]] ; then
@@ -27,6 +31,7 @@ fail() {
     # fail "error" ["code"]
     # $1: error message
     # $2: error code (default 1)
+    # On error codes, 
     message="FAILED: $1"
     log -qq "$message"
     echo "$message" 1>&2
@@ -39,8 +44,10 @@ try() {
     # $2: message, like what the command is doing. Leaving empty will not print anything
     # $3: if -e passed, it is space for error message
     # $@: Command to execute
+    #
     # Note command are run in function, so e.g conditions must be passed with test, 
-    # declaring variables must be done globally and shift doesn't work
+    # declaring variables must be done globally, shift doesn't work and
+    # outputing to file must be done with $()
     if [[ ${1::1} == "-" ]] ; then
         for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
 	    case "$f" in
@@ -52,6 +59,10 @@ try() {
 	    ;;
 	    q)
 	    	quiet="yes"
+	    ;;
+	    c)
+		# TODO: implement errorcodes
+		error_code="yes"
 	    ;;
 	    esac
     	done
@@ -74,10 +85,43 @@ try() {
     # Reset
     include_error=""
     quiet=""
+    error_code=""
+}
+
+split() {
+    # split "command" [-cutflags]
+    # $1: Command/string to cut
+    # $@: Flags passed to cut
+    # Most basic flag is -f1, which returns the first word
+    full_str="$1" && shift
+    str="$(echo "$full_str" | cut - -d" " $*)"
+    echo "$str"
+}
+
+pack() {
+    # pack [-cx] "string/array"
+    # $1: Flag (-c create/pack, -x export/unpack)
+    # $2: Packed string or packable array
+    # In SH it is quite hard to place arrays inside arrays,
+    # so they are packed into strings that can be unpacked
+    # Note the compiler uses only associative arrays (declare -A),
+    # and they must be inputed in ${(kv)array} format
+    flag="$1" && shift
+    local IFS=":"
+    [[ "$flag" == "-c" ]] && echo "$*" && return
+
+    echo "$*" | read -r -A array
+    declare -A output
+    for i in "${array[@]}" ; do
+	[[ -z "$previous" ]] && previous=$i && continue
+	output["$previous"]=$i && previous=""
+    done
+    
+    echo $output
 }
 
 # Reset logs
-echo "Initializing compiler" > glögilogs
+echo "Initializing compiler" > "$tmp_log"
 
 # Check command flags
 log -q "Checking args"
@@ -93,7 +137,7 @@ while [[ -n $1 ]] ; do
 	force="yes"
     ;;
     --verbose|-v)
-	cat glögilogs | tail --lines=+2
+	cat "$tmp_log" | tail -n +2
 	log "Found verbose-flag: starting verbose-mode"
 	verbose="yes"
     ;;
@@ -105,7 +149,7 @@ while [[ -n $1 ]] ; do
 	fail "$1: no flag with that name"
     ;;
     -*)
-	for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
+	for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do # TODO: find out how this works
 	    case "$f" in 
 	    -)
 	    	continue
@@ -119,7 +163,7 @@ while [[ -n $1 ]] ; do
 	    	force="yes"
 	    ;;
 	    v)
-		cat glögilogs
+		cat "$tmp_log" | tail -n +2
 		log "Found verbose-flag: starting verbose-mode"
 	    	verbose="yes"
 	    ;;
@@ -147,9 +191,9 @@ log -q "Validating sourcefiles"
 [[ ! -f "$src" ]] && fail "No source file found: $src"
 
 # Set default dest
-[[ -z "$dest" ]] && dest="$(echo $src | cut -d. -f1)" # src cut at first dot
+[[ -z "$dest" ]] && dest="$(split $src -d. -f1)" # src cut at first dot
 [[ -f "$dest" ]] && [[ ! $force ]] && fail "Destination with same name found. Use --force to override"
 
 # Move logfile
-[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv glögilogs $logfile
+[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv "$tmp_log" $logfile
 
