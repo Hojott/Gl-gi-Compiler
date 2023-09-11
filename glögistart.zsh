@@ -61,14 +61,16 @@ while [[ -n "$(cat $tmpsrc)" ]] ; do
 	int)
 	    # Variable declaration in Assembly
 	    if [[ " $var_name " != *" ${(k)variables} "* ]] ; then
-		log -q "New variable $var_name"
+		# TODO: Integer size validation
 	    	echo "\t$var_name resb $((var_size/8))" >> $bss
 	    fi
 
 	    # Set variable value in Assembly
 	    if [[ -n "$var_value" ]] ; then
 	        echo "\t\t; $line" >> $text
+		# TODO: Fix to work with others than i16
 	        echo "\t\tmov word [$var_name], $var_value" >> $text
+		echo "" >> $text
 	    fi
 
 	    # Set variable in compiler
@@ -92,7 +94,33 @@ while [[ -n "$(cat $tmpsrc)" ]] ; do
     "yell")
 	# Basic print/- command
 	# outputs string to stdout
-	:
+	message="$(split $line -f2)"
+
+	echo "\tyell$line_num db \"$message\", 10, 0" >> $data
+	echo "\tlen equ \$-yell$line_num" >> $data
+
+	echo "\t\t; $line" >> $text
+	echo "\t\tmov eax, 4" >> $text
+	echo "\t\tmov ebx, 1" >> $text
+	echo "\t\tmov ecx, yell$line_num" >> $text
+	echo "\t\tmov edx, len" >> $text
+	echo "\t\tint 0x80" >> $text
+	echo "" >> $text
+	
+
+    ;;
+    "exit")
+	# Exit program
+	# exit 0
+	
+	exit_code="$(split $line -f2)"
+	[[ "$exit_code" == "exit" ]] && exit_code="0"
+
+	echo "\t\t; $line" >> $text
+	echo "\t\tmov eax, 1" >> $text
+	echo "\t\tmov ebx, $exit_code" >> $text
+	echo "\t\tint 0x80" >> $text
+	echo "" >> $text
     ;;
     "//*")
 	# Comments are marked with //
@@ -111,10 +139,10 @@ done
 try -q "Moving bss to dest" $(cat $bss >> $asmfile)
 try "" echo "\n" >> $asmfile
 try -q "Moving text to dest" $(cat $text >> $asmfile)
-try "" echo "\n" >> $asmfile
 try -q "Moving data to dest" $(cat "$data" >> $asmfile)
 
 # Compile assembly
-try "Compiling nasm..." nasm -f elf $asmfile
+#try "Compiling nasm..." nasm $asmfile
+try "Compiling nasm..." nasm -f elf -o $dest.o $asmfile
 try "Compiling ld..." ld -m elf_i386 -s -o $dest $dest.o
 
