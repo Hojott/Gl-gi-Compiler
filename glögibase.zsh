@@ -39,7 +39,8 @@ try() {
     # $2: message, like what the command is doing. Leaving empty will not print anything
     # $3: if -e passed, it is space for error message
     # $@: Command to execute
-    # Note conditions must be passed with test and declaring variables must be done globally
+    # Note command are run in function, so e.g conditions must be passed with test, 
+    # declaring variables must be done globally and shift doesn't work
     if [[ ${1::1} == "-" ]] ; then
         for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
 	    case "$f" in
