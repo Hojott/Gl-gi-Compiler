@@ -12,7 +12,7 @@ log() {
     # $1: command flag (-q to silence, -qq to supersilence)
     # $2: loggable message
     [[ -n "$2" ]] && message="$2" || message="$1"
-    [[ -n "$logfile" ]] && echo "$message" >> "$logfile" || echo "$message" >> "glögi.log"
+    [[ -n "$logfile" ]] && echo "$message" >> "$logfile" || echo "$message" >> glögilogs
     if [[ "$1" == "-qq" ]] ; then
 	:
     elif [[ "$1" == -q ]] && [[ -z "$verbose" ]] ; then
@@ -37,21 +37,24 @@ try() {
     # $3: if -e passed, it is space for error message
     # $@: Command to execute
     # Note conditions must be passed with test and declaring variables must be done globally
-    for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
-	case "$f" in
-	-)
-	    continue
-	;;
-	e)
-	    include_error="yes"
-	;;
-	q)
-	    quiet="yes"
-	;;
-	esac
-    done
-    message="$2"
-    shift 2
+    if [[ ${1::1} == "-" ]] ; then
+        for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
+	    case "$f" in
+	    -)
+	    	continue
+	    ;;
+	    e)
+	    	include_error="yes"
+	    ;;
+	    q)
+	    	quiet="yes"
+	    ;;
+	    esac
+    	done
+	shift
+    fi
+    message="$1"
+    shift
     [[ -n "$include_error" ]] && { error="$1" ; shift }
     if [[ -n "$quiet" ]] ; then
 	[[ -n "$message" ]] && log -q "$message"
@@ -144,7 +147,7 @@ log -q "Validating sourcefiles"
 [[ -f "$dest" ]] && [[ ! $force ]] && fail "Destination with same name found. Use --force to override"
 
 # Move logfile
-[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" && mv glögilogs $logfile
+[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv glögilogs $logfile
 
 # Start compilation
 try - "Creating destination..." touch $dest

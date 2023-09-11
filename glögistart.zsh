@@ -1,3 +1,3 @@
 # Start compilation
-try - "Creating destination..." touch $dest
+try "Creating destination..." touch $dest
 

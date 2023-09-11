@@ -9,6 +9,7 @@ echo "Initializing compiler..."
 
 # Create utility functions
 log() {
+    # log [-qq] "log"
     # $1: command flag (-q to silence, -qq to supersilence)
     # $2: loggable message
     [[ -n "$2" ]] && message="$2" || message="$1"
@@ -23,6 +24,7 @@ log() {
 }
 
 fail() {
+    # fail "error" ["code"]
     # $1: error message
     # $2: error code (default 1)
     message="FAILED: $1"
@@ -32,26 +34,30 @@ fail() {
 }
 
 try() {
+    # try [-qe] "message" ["error"] command
     # $1: command flags (-q to silence, -e to add error message)
     # $2: message, like what the command is doing. Leaving empty will not print anything
     # $3: if -e passed, it is space for error message
     # $@: Command to execute
     # Note conditions must be passed with test and declaring variables must be done globally
-    for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
-	case "$f" in
-	-)
-	    continue
-	;;
-	e)
-	    include_error="yes"
-	;;
-	q)
-	    quiet="yes"
-	;;
-	esac
-    done
-    message="$2"
-    shift 2
+    if [[ ${1::1} == "-" ]] ; then
+        for f in $(echo "$1" | sed -e 's/\(.\)/\1\n/g') ; do
+	    case "$f" in
+	    -)
+	    	continue
+	    ;;
+	    e)
+	    	include_error="yes"
+	    ;;
+	    q)
+	    	quiet="yes"
+	    ;;
+	    esac
+    	done
+	shift
+    fi
+    message="$1"
+    shift
     [[ -n "$include_error" ]] && { error="$1" ; shift }
     if [[ -n "$quiet" ]] ; then
 	[[ -n "$message" ]] && log -q "$message"
