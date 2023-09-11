@@ -144,5 +144,5 @@ log -q "Validating sourcefiles"
 [[ -f "$dest" ]] && [[ ! $force ]] && fail "Destination with same name found. Use --force to override"
 
 # Move logfile
-[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" && mv glögilogs $logfile
+[[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv glögilogs $logfile
 
