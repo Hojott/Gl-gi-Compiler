@@ -1,0 +1,12 @@
+// Create a 16-bit integer
+create int.16 id
+
+// Give the integer a value
+rev id 243
+
+// Print "twentytwo" to the console
+yell "twentytwo"
+
+// Exit the program nicely
+exit
+

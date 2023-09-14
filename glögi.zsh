@@ -98,30 +98,6 @@ split() {
     echo "$str"
 }
 
-pack() {
-    # pack [-cx] "string/array"
-    # $1: Flag (-c create/pack, -x export/unpack)
-    # $2: Packed string or packable array
-    # In SH it is quite hard to place arrays inside arrays,
-    # so they are packed into strings that can be unpacked
-    # Note pack() uses only associative arrays (declare -A),
-    # and they must be inputed in ${(kv)array} format
-    flag="$1" && shift
-    local IFS=":"
-    [[ "$flag" == "-c" ]] && output="$*"
-    
-    if [[ "$flag" == "-x" ]] ; then
-    	echo "$*" | read -r -A array
-    	declare -A output
-	for i in "${array[@]}" ; do
-	    [[ -z "$previous" ]] && previous=$i && continue
-	    output[$previous]="$i" && previous=""
-    	done
-    fi
-    
-    echo ${output[@]}
-}
-
 # Reset logs
 echo "Initializing compiler" > "$tmp_log"
 
@@ -219,7 +195,7 @@ validate_value() {
     case $input in
     \'*\'|\"*\")
 	# case string, remove quotes
-	value=$(split $input -d"'" -f2)
+	value=$(split $input -d"${input::1}" -f2)
     ;;
     +([[:digit:]]))
 	# case integer, remove +
@@ -239,6 +215,10 @@ validate_value() {
     
     echo $value
 }
+
+echo $(validate_value 5)
+echo $(validate_value \"hello\")
+echo $(validate_value hola)
 
 # Create usable builtin functions for the language
 builtin_exit() {
@@ -312,11 +292,9 @@ builtin_rev() {
     # Unpack variable info
     var_info=${variables["$var_name"]}
 
-    echo $var_info
     var_type="$(split $var_info -d":" -f1)"
     var_size="$(split $var_info -d":" -f2)"
     var_info=""
-    echo "$var_type $var_size"
 
     case $var_type in
     int)
@@ -355,9 +333,7 @@ builtin_rev() {
     esac
 
     # Set variable in compiler
-    var_info=( "var_type" "$var_type" "var_size" "$var_size" "var_value" "$var_value" )
-    variables["$var_name"]=$(pack -c ${(kv)var_info})
-    var_info=()
+    variables["$var_name"]="$var_type:$var_size:$var_value"
 }
 
 builtin_yell() {

@@ -18,7 +18,7 @@ validate_value() {
     case $input in
     \'*\'|\"*\")
 	# case string, remove quotes
-	value=$(split $input -d"'" -f2)
+	value=$(split $input -d"${input::1}" -f2)
     ;;
     +([[:digit:]]))
 	# case integer, remove +
@@ -38,6 +38,10 @@ validate_value() {
     
     echo $value
 }
+
+echo $(validate_value 5)
+echo $(validate_value \"hello\")
+echo $(validate_value hola)
 
 # Create usable builtin functions for the language
 builtin_exit() {
