@@ -111,11 +111,9 @@ builtin_rev() {
     # Unpack variable info
     var_info=${variables["$var_name"]}
 
-    echo $var_info
     var_type="$(split $var_info -d":" -f1)"
     var_size="$(split $var_info -d":" -f2)"
     var_info=""
-    echo "$var_type $var_size"
 
     case $var_type in
     int)
@@ -154,9 +152,7 @@ builtin_rev() {
     esac
 
     # Set variable in compiler
-    var_info=( "var_type" "$var_type" "var_size" "$var_size" "var_value" "$var_value" )
-    variables["$var_name"]=$(pack -c ${(kv)var_info})
-    var_info=()
+    variables["$var_name"]="$var_type:$var_size:$var_value"
 }
 
 builtin_yell() {
