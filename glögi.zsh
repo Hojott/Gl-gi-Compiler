@@ -104,20 +104,22 @@ pack() {
     # $2: Packed string or packable array
     # In SH it is quite hard to place arrays inside arrays,
     # so they are packed into strings that can be unpacked
-    # Note the compiler uses only associative arrays (declare -A),
+    # Note pack() uses only associative arrays (declare -A),
     # and they must be inputed in ${(kv)array} format
     flag="$1" && shift
     local IFS=":"
-    [[ "$flag" == "-c" ]] && echo "$*" && return
-
-    echo "$*" | read -r -A array
-    declare -A output
-    for i in "${array[@]}" ; do
-	[[ -z "$previous" ]] && previous=$i && continue
-	output["$previous"]=$i && previous=""
-    done
+    [[ "$flag" == "-c" ]] && output="$*"
     
-    echo $output
+    if [[ "$flag" == "-x" ]] ; then
+    	echo "$*" | read -r -A array
+    	declare -A output
+	for i in "${array[@]}" ; do
+	    [[ -z "$previous" ]] && previous=$i && continue
+	    output[$previous]="$i" && previous=""
+    	done
+    fi
+    
+    echo ${output[@]}
 }
 
 # Reset logs
@@ -198,6 +200,185 @@ log -q "Validating sourcefiles"
 [[ -n "$logfiletmp" ]] && logfile=$logfiletmp || logfile="$dest.log" ; mv "$tmp_log" $logfile
 
 
+### Builtin functions ###
+log -q "Creating builtin functions..."
+
+# Create constants
+declare -a int_sizes
+int_sizes=( 16 32 64 )
+
+# Create compiling functions
+validate_value() {
+    # validate_value "var/value"
+    # $1: variable/value
+    # Returns variable value if input is a glögi variable,
+    # or returns back the value in assembly-format
+    # e.g validate_value "hello" -> hello
+    #     validate_value variable -> 5
+    input=$1
+    case $input in
+    \'*\'|\"*\")
+	# case string, remove quotes
+	value=$(split $input -d"'" -f2)
+    ;;
+    +([[:digit:]]))
+	# case integer, remove +
+	value=$(split $input -d"+" -f2)
+    ;;
+    *)
+	# case variable
+	if [[ " $input " == *" ${(k)variables} "* ]] ; then
+	    var_info=$(pack -x ${variables[$input]})
+	    [[ "${var_info[var_type]}" == "int" ]] && value="[$input]"
+	    [[ "${var_info[var_type]}" == "str" ]] && value=$input
+	else
+	    fail "$input not defined!" 2
+	fi
+    ;;
+    esac
+    
+    echo $value
+}
+
+# Create usable builtin functions for the language
+builtin_exit() {
+    # Exit program
+    # exit 0
+	
+    exit_code="$1"
+    [[ -z "$exit_code" ]] && exit_code="0"
+
+    echo "\t\t; $line" >> $text
+    echo "\t\tmov eax, 1" >> $text
+    echo "\t\tmov ebx, $exit_code" >> $text
+    echo "\t\tint 0x80" >> $text
+    echo "" >> $text
+}
+
+builtin_create() {
+    # Create a new variable
+    # create int.16 car_id
+    # Integers must have their bit-size appended to type
+    # String must have their max length appended
+
+    # Get parameters
+    var_type_expanded="$1"
+    var_type="$(split $var_type_expanded -d. -f1)"
+    var_size="$(split $var_type_expanded -d. -f2)"
+    var_name="$2"
+
+    [[ " $var_name " == *" ${(k)variables} "* ]] && fail "Variable already created!" 2
+
+    case $var_type in
+    int)
+	# Variable declaration in .bss
+	if (( $int_sizes[(Ie)$var_size] )) ; then
+	    echo "\t$var_name resb $((var_size/8))" >> $bss
+	else
+	    fail "Int cannot be $var_size-bit!" 2
+        fi
+	
+    ;;
+    str)
+	# Variable declaration in .bss
+	#echo "\t$var_name resb $((var_size*2))" >> $bss
+
+	# Variable declaration in .data
+	#echo "\t$var_name db \"$var_value\", 0" >> $data
+
+    ;;
+    *)
+	fail "Type not found: $var_type_extended" 2
+    ;;
+    esac
+
+    # Set variable in compiler
+    variables["$var_name"]="$var_type:$var_size:"
+
+}
+
+builtin_rev() {
+    # Revalue a variable
+    # rev car_id 17
+    # Variables must be created first
+
+    # Get parameters
+    var_name="$1"
+    var_value="$2"
+
+    # Get existing variable info
+    [[ " \"$var_name\" " == *" ${(k)variables} "* ]] || fail "Variable hasn't been created!" 2
+    
+    # Unpack variable info
+    var_info=${variables["$var_name"]}
+
+    echo $var_info
+    var_type="$(split $var_info -d":" -f1)"
+    var_size="$(split $var_info -d":" -f2)"
+    var_info=""
+    echo "$var_type $var_size"
+
+    case $var_type in
+    int)
+	# Set variable value in .text
+        (( $int_sizes[(Ie)$var_size] )) || fail "Invalid variable size set!" 2
+	echo "\t\t; $line" >> $text
+
+	# Set correct word size
+	case "$var_size" in
+	16)
+	    echo "\t\tmov word [$var_name], $var_value" >> $text
+	;;
+	32)
+	    echo "\t\tmov dword [$var_name], $var_value" >> $text
+	;;	
+	64)
+	    echo "\t\tmov qword [$var_name], $var_value" >> $text
+	;;	
+        esac
+
+	echo "" >> $text
+    ;;
+    str)
+	# Variable declaration in .bss
+	#if [[ " $var_name " != *" ${(k)variables} "* ]] ; then
+	#	echo "\t$var_name resb $((var_size*2))" >> $bss
+	#fi
+
+	# Variable declaration in .data
+	#echo "\t$var_name db \"$var_value\", 0" >> $data
+
+    ;;
+    *)
+	fail "Type not found: $var_type.$var_size" 2
+    ;;
+    esac
+
+    # Set variable in compiler
+    var_info=( "var_type" "$var_type" "var_size" "$var_size" "var_value" "$var_value" )
+    variables["$var_name"]=$(pack -c ${(kv)var_info})
+    var_info=()
+}
+
+builtin_yell() {
+    # Basic print/- command
+    # outputs string to stdout
+    message="$1"
+
+    # Changes to .data
+    echo "\t__yell$line_num db \"$message\", 10, 0" >> $data
+    echo "\t__len$line_num equ \$-__yell$line_num" >> $data
+
+    # Changes to .text
+    echo "\t\t; $line" >> $text
+    echo "\t\tmov eax, 4" >> $text
+    echo "\t\tmov ebx, 1" >> $text
+    echo "\t\tmov ecx, __yell$line_num" >> $text
+    echo "\t\tmov edx, __len$line_num" >> $text
+    echo "\t\tint 0x80" >> $text
+    echo "" >> $text
+}
+
 ### Start compilation ###
 log "Starting compilation..."
 
@@ -217,19 +398,24 @@ try -q "Creating data-dest" $(echo "section .data" > $data)
 asmfile="$dest.asm"
 try -q "Creating assembly file" $(echo "; $dest" > $asmfile)
 
-# Create required boilerplate
+# Create required boilerplate (1/2)
 try -q "Creating global _start" $(echo "\tglobal _start\n\n\t_start:\n" >> $text)
 
 # Helpful variables
 log -q "Setting variables"
+
+# Create list of defined variables for compiler
 declare -A variables
 variables=(
-    # var_name (type var_type size var_size value var_value)
+    # (associative) arrays are shit
+    # "var_name" "var_type:var_size:var_value"
 )
+
+# Mark line nmber
+line_num=0
 
 # Start compiling code - where the magic happens
 log -q "Starting while loop"
-line_num=0
 while [[ -n "$(cat $tmpsrc)" ]] ; do
     ((line_num++))
     
@@ -238,92 +424,52 @@ while [[ -n "$(cat $tmpsrc)" ]] ; do
 
     log -q "$src:$line_num Compiling $cmd: $line"
 
-    # Builtin commands
+    # Check command for builtins
     case "$cmd" in
-    "dec")
-	# Declare variables
-	# Types include int and str
-	# String must have their max length appended e.g. str.12
-	# Integers must have their byte size e.g. int.32
-	# dec int.16 num 17
-	# Note while it is possible to redefine variables, it is
-	# better practice to revalue them with rev
-
-	# Needed info for variable creation
+    "create")
+	# Create a new variable
+	
+	# Get parameters
 	var_type_expanded="$(split $line -f2)"
-	var_type="$(split $var_type_expanded -d. -f1)"
-	var_size="$(split $var_type_expanded -d. -f2)"
 	var_name="$(split $line -f3)"
-	var_value="$(split $line -f4)"
+	
+	# Check if all parameters are set
+	[[ "$var_type_extended" == "$var_name" ]] && fail "Not enough parameters" 2
 
-	case $var_type in
-	int)
-	    # Variable declaration in Assembly
-	    if [[ " $var_name " != *" ${(k)variables} "* ]] ; then
-		# TODO: Integer size validation
-	    	echo "\t$var_name resb $((var_size/8))" >> $bss
-	    fi
+    	builtin_create $var_type_expanded $var_name
 
-	    # Set variable value in Assembly
-	    if [[ -n "$var_value" ]] ; then
-	        echo "\t\t; $line" >> $text
-		# TODO: Fix to work with others than i16
-	        echo "\t\tmov word [$var_name], $var_value" >> $text
-		echo "" >> $text
-	    fi
-
-	    # Set variable in compiler
-	    declare -A $var_info
-	    var_info=( "type" "$var_type" "size" "$var_size" "value" "$var_value" )
-	    variables["$var_name"]=$(pack -c $var_info)
-	;;
-	str)
-	    :
-	;;
-	*)
-	    fail "Type not found: $var_type_extended" 2
-	;;
-	esac
     ;;
     "rev")
 	# Revalue a variable
-	# Type is not needed here, only name and value
-	# rev num 4
+    	
+	# Get parameters
+	var_name="$(split $line -f2)"
+	var_value="$(split $line -f3)"
+
+	builtin_rev $var_name $var_value
+
     ;;
     "yell")
 	# Basic print/- command
 	# outputs string to stdout
 	message="$(split $line -f2)"
 
-	echo "\tyell$line_num db \"$message\", 10, 0" >> $data
-	[[ -z "$len_set" ]] && echo "\tlen equ \$-yell$line_num" >> $data && len_set="yes"
-
-	echo "\t\t; $line" >> $text
-	echo "\t\tmov eax, 4" >> $text
-	echo "\t\tmov ebx, 1" >> $text
-	echo "\t\tmov ecx, yell$line_num" >> $text
-	echo "\t\tmov edx, len" >> $text
-	echo "\t\tint 0x80" >> $text
-	echo "" >> $text
-	
+	builtin_yell $message
 
     ;;
     "exit")
 	# Exit program
-	# exit 0
-	
+
+	# Get parameters
 	exit_code="$(split $line -f2)"
 	[[ "$exit_code" == "exit" ]] && exit_code="0"
-
-	echo "\t\t; $line" >> $text
-	echo "\t\tmov eax, 1" >> $text
-	echo "\t\tmov ebx, $exit_code" >> $text
-	echo "\t\tint 0x80" >> $text
-	echo "" >> $text
+	
+	builtin_exit $exit_code
+    
     ;;
-    "//*")
+    "//*"|"")
 	# Comments are marked with //
-	# TODO: Move to beginning of while loop / standard library
+	# TODO: Move to beginning of while loop
 	:
     ;;
     "*")
@@ -333,6 +479,9 @@ while [[ -n "$(cat $tmpsrc)" ]] ; do
 
     sed -i "1d" $tmpsrc
 done
+
+# Create required boilerplate (2/2)
+#try -q "Creating end" $(echo "\tend:\n\t\tmov eax, 1\n\t\tmov ebx, 0\n\t\tint 0x80\n" >> $text)
 
 # Unite the sections into one file
 try -q "Moving bss to dest" $(cat $bss >> $asmfile)

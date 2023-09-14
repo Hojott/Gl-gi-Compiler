@@ -98,28 +98,6 @@ split() {
     echo "$str"
 }
 
-pack() {
-    # pack [-cx] "string/array"
-    # $1: Flag (-c create/pack, -x export/unpack)
-    # $2: Packed string or packable array
-    # In SH it is quite hard to place arrays inside arrays,
-    # so they are packed into strings that can be unpacked
-    # Note the compiler uses only associative arrays (declare -A),
-    # and they must be inputed in ${(kv)array} format
-    flag="$1" && shift
-    local IFS=":"
-    [[ "$flag" == "-c" ]] && echo "$*" && return
-
-    echo "$*" | read -r -A array
-    declare -A output
-    for i in "${array[@]}" ; do
-	[[ -z "$previous" ]] && previous=$i && continue
-	output["$previous"]=$i && previous=""
-    done
-    
-    echo $output
-}
-
 # Reset logs
 echo "Initializing compiler" > "$tmp_log"
 
