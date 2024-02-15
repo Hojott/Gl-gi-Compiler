@@ -123,6 +123,10 @@ while [[ -n $1 ]] ; do
 	try -qe "Found log-flag: $2" "Missing parameter for $1" test -n "$2" && declare -g logfiletmp="$2"
 	shift
     ;;
+    --debug|-D)
+	log -q "Found debug-flag"
+	debug="yes"
+    ;;
     --*)
 	fail "$1: no flag with that name"
     ;;
@@ -149,6 +153,10 @@ while [[ -n $1 ]] ; do
 		try -qe "Found log-flag: $2" "Missing parameter for -$f" test -n "$2" && declare -g logfiletmp="$2"
 		shift
 	    ;;
+    	    D)
+		log -q "Found debug-flag"
+		debug="yes"
+    	    ;;
 	    *)
 	    	fail "-$f: no flag with that name"
 	    ;;

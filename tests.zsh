@@ -8,5 +8,5 @@ echo "-- Test 1 --"
 echo ""
 
 echo "-- Test 2 --"
-./glögi.zsh -fvd dest src.gl
+./glögi.zsh -fvDd dest src.gl
 

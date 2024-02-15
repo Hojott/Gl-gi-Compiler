@@ -45,6 +45,7 @@ while [[ -n "$(cat $tmpsrc)" ]] ; do
     log -q "$src:$line_num Compiling $cmd: $line"
 
     # Check command for builtins
+    # TODO: use $() to automatically execute functions
     case "$cmd" in
     "create")
 	# Create a new variable
@@ -113,4 +114,5 @@ try -q "Moving data to dest" $(cat "$data" >> $asmfile)
 #try "Compiling nasm..." nasm $asmfile
 try "Compiling nasm..." nasm -f elf -o $dest.o $asmfile
 try "Compiling ld..." ld -m elf_i386 -s -o $dest $dest.o
+try -q "Removing debugfiles" test -z $debug && rm $dest.o $asmfile
 

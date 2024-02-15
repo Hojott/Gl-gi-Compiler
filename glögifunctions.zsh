@@ -39,6 +39,35 @@ validate_value() {
     echo $value
 }
 
+validate() {
+    input="$1"
+    case $input in
+    int)
+	# Integer numbers
+    ;;
+    float)
+        # Floating-point numbers
+    ;;
+    str)
+	# Stringlike arrays
+    ;;
+    array)
+	# Arrays
+    ;;
+    func)
+	# Functions
+    ;;
+    set)
+	# Sets / Types
+    ;;
+    *)
+	# Variables
+    ;;
+    esac
+
+    echo $value
+}
+
 echo $(validate_value 5)
 echo $(validate_value \"hello\")
 echo $(validate_value hola)
