@@ -10,3 +10,8 @@
 
 # Tmp files
 *.tmp
+
+
+# Cargo files
+Cargo.lock
+/target
